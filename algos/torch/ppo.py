@@ -182,6 +182,7 @@ def ppo():
         return (actor_critic.v(obs) - adj_rewards).pow(2).mean()
 
     def ppo_update():
+        # TODO: Advantage normalisation trick
         data = {k: torch.as_tensor(v, dtype=torch.float32)
                 for k, v in dict(obs=obs_buf, act=act_buf, rew=rew_boot_buf, adv=adv_buf, logp=logp_buf).items()}
 
