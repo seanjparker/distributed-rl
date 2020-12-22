@@ -10,6 +10,8 @@ gym = {extras = ["box2d"], version = "*"}
 numpy = "*"
 box2d = "*"
 mpi4py = "*"
+tensorflow = "*"
+tensorflow-probability = "*"
 
 [dev-packages]
 autopep8 = "*"
