@@ -1,6 +1,7 @@
 import os
 import subprocess
 import sys
+from datetime import datetime
 
 import gym
 import numpy as np
@@ -10,6 +11,9 @@ from mpi4py import MPI
 from scipy import signal
 from torch.distributions.categorical import Categorical
 from torch.optim import Adam
+from algos.common.util import EpochRecorder
+
+from defs import ROOT_DIR
 
 # Hyperparameter definitions
 num_workers = 4
@@ -81,11 +85,11 @@ class Actor(nn.Module):
         super().__init__()
         self.actor = nn.Sequential(
             nn.Linear(obs_dimensions, 64),
-            nn.ReLU(),
+            nn.Tanh(),
             nn.Linear(64, 64),
-            nn.ReLU(),
+            nn.Tanh(),
             nn.Linear(64, act_dimensions),
-            nn.Tanh()
+            nn.Identity()
         )
 
     def get_distribution(self, obs):
@@ -106,11 +110,11 @@ class Critic(nn.Module):
         super().__init__()
         self.critic = nn.Sequential(
             nn.Linear(obs_dimensions, 64),
-            nn.ReLU(),
+            nn.Tanh(),
             nn.Linear(64, 64),
-            nn.ReLU(),
+            nn.Tanh(),
             nn.Linear(64, 1),
-            nn.Tanh()
+            nn.Identity()
         )
 
     def forward(self, obs):
@@ -148,6 +152,8 @@ def discount_cumsum(x, discount):
 
 def ppo():
     torch_mpi_init()
+
+    reward_rec = EpochRecorder(mpi_proc_id(), 'reward')
 
     env = gym.make('LunarLander-v2')
     obs_space = env.observation_space
@@ -243,9 +249,21 @@ def ppo():
 
         ppo_update()
         if mpi_proc_id() == 0:
+            reward_rec.store(ep_reward_history[ep])
             print(f'epoch: {ep + 1}, max reward: {ep_reward_history[ep]:.3f}')
+
+    # Training complete, dump the data to JSON
+    if mpi_proc_id() == 0:
+        reward_rec.dump()
+
+    return actor_critic
 
 
 if __name__ == '__main__':
     mpi_fork(num_workers)
-    ppo()
+    model = ppo()
+    if mpi_proc_id() == 0:
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        torch.save(model.state_dict(), f'{ROOT_DIR}/models/{timestamp}_torchppo.pt')
+
+
