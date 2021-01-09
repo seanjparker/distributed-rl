@@ -1,19 +1,17 @@
-import os
-import subprocess
-import sys
 from datetime import datetime
 
 import gym
 import numpy as np
 import torch
 import torch.nn as nn
-from mpi4py import MPI
 from scipy import signal
 from torch.distributions.categorical import Categorical
 from torch.optim import Adam
 from algos.common.util import EpochRecorder
 
 from defs import ROOT_DIR
+
+from algos.common.mpi import mpi_proc_id, mpi_fork, mpi_avg_scalar, torch_mpi_sync_params, torch_mpi_avg_grads
 
 # Hyperparameter definitions
 num_workers = 4
@@ -27,62 +25,6 @@ train_v_iters = 80
 gamma = 0.99
 lam = 0.97
 clip_ratio_offset = 0.2
-
-
-def mpi_proc_id():
-    return MPI.COMM_WORLD.Get_rank()
-
-
-def mpi_num_procs():
-    return MPI.COMM_WORLD.Get_size()
-
-
-def mpi_op(x, op=MPI.SUM):
-    x, scalar = ([x], True) if np.isscalar(x) else (x, False)
-    x = np.asarray(x, dtype=np.float32)
-    buff = np.zeros_like(x, dtype=np.float32)
-    MPI.COMM_WORLD.Allreduce(x, buff, op=op)
-    return buff[0] if scalar else buff
-
-
-def mpi_avg(x):
-    return mpi_op(x) / mpi_num_procs()
-
-
-def mpi_avg_grads(module):
-    if mpi_num_procs() == 1:
-        return
-    for p in module.parameters():
-        p_grad_numpy = p.grad.numpy()
-        avg_p_grad = mpi_avg(p.grad)
-        p_grad_numpy[:] = avg_p_grad[:]
-
-
-def mpi_avg_scalar(x):
-    x = np.array(x, dtype=np.float32)
-    global_sum, global_n = mpi_op([np.sum(x), x.size])
-    mean = global_sum / global_n
-    return mean
-
-
-def mpi_sync_params(module):
-    if mpi_num_procs() == 1:
-        return
-    for p in module.parameters():
-        MPI.COMM_WORLD.Bcast(p.data.numpy(), root=0)
-
-
-def mpi_fork(n):
-    if n <= 1:
-        return
-    if os.getenv("IN_MPI") is None:
-        env = os.environ.copy()
-        env.update(MKL_NUM_THREADS='1', OMP_NUM_THREADS='1', IN_MPI='1')
-        args = ['mpirun', '-np', str(n), '--use-hwthread-cpus']
-        args += [sys.executable] + sys.argv
-        print(args)
-        subprocess.check_call(args, env=env)
-        sys.exit()
 
 
 def torch_mpi_init():
@@ -173,7 +115,7 @@ def ppo():
 
     actor_critic = ActorCritic(obs_space, act_space)
 
-    mpi_sync_params(actor_critic)
+    torch_mpi_sync_params(actor_critic)
 
     obs_buf = np.zeros((steps_per_epoch, obs_space.shape[0]), dtype=np.float32)
     act_buf = np.zeros(steps_per_epoch, dtype=np.float32)
@@ -208,14 +150,14 @@ def ppo():
             pi_optim.zero_grad()
             pi_loss = ppo_pi_loss(data)
             pi_loss.backward()
-            mpi_avg_grads(actor_critic.pi)
+            torch_mpi_avg_grads(actor_critic.pi)
             pi_optim.step()
 
         for i in range(train_v_iters):
             v_optim.zero_grad()
             v_loss = ppo_v_loss(data)
             v_loss.backward()
-            mpi_avg_grads(actor_critic.v)
+            torch_mpi_avg_grads(actor_critic.v)
             v_optim.step()
 
     obs, ep_reward, ep_len = env.reset(), 0, 0

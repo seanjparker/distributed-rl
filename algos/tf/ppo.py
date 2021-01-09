@@ -1,13 +1,12 @@
-import os
-import subprocess
-import sys
-
 import gym
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
-from mpi4py import MPI
 from scipy import signal
+
+from mpi4py import MPI
+from algos.common.mpi import mpi_fork, mpi_proc_id, mpi_avg_scalar
+from algos.common.util import EpochRecorder
 
 # Hyperparameter definitions
 num_workers = 4
@@ -20,27 +19,6 @@ train_iters = 80
 gamma = 0.99
 lam = 0.97
 clip_ratio_offset = 0.2
-
-
-def mpi_proc_id():
-    return MPI.COMM_WORLD.Get_rank()
-
-
-def mpi_num_procs():
-    return MPI.COMM_WORLD.Get_size()
-
-
-def mpi_fork(n):
-    if n <= 1:
-        return
-    if os.getenv("IN_MPI") is None:
-        env = os.environ.copy()
-        env.update(MKL_NUM_THREADS='1', OMP_NUM_THREADS='1', IN_MPI='1')
-        args = ['mpirun', '-np', str(n), '--use-hwthread-cpus']
-        args += [sys.executable] + sys.argv
-        print(args)
-        subprocess.check_call(args, env=env)
-        sys.exit()
 
 
 def tf_mpi_init():
@@ -101,17 +79,17 @@ class ActorCritic(tf.Module):
         # policy network
         self.pi = tf.keras.Sequential([
             tf.keras.layers.Input(shape=(obs_dimensions,)),
-            tf.keras.layers.Dense(64, activation='relu'),
-            tf.keras.layers.Dense(64, activation='relu'),
-            tf.keras.layers.Dense(act_space.n, activation='softmax')
+            tf.keras.layers.Dense(64, activation='tanh'),
+            tf.keras.layers.Dense(64, activation='tanh'),
+            tf.keras.layers.Dense(act_space.n, activation='linear')
         ])
 
         # value network
         self.v = tf.keras.Sequential([
             tf.keras.layers.Input(shape=(obs_dimensions,)),
-            tf.keras.layers.Dense(64, activation='relu'),
-            tf.keras.layers.Dense(64, activation='relu'),
-            tf.keras.layers.Dense(1, activation='tanh')
+            tf.keras.layers.Dense(64, activation='tanh'),
+            tf.keras.layers.Dense(64, activation='tanh'),
+            tf.keras.layers.Dense(1, activation='linear')
         ])
 
         self.pi_optim = MpiAdamOptimizer(self.pi.trainable_variables, lr=pi_lr)
@@ -176,7 +154,10 @@ def discount_cumsum(x, discount):
 
 
 def ppo():
+    rank = mpi_proc_id()
     tf_mpi_init()
+
+    reward_rec = EpochRecorder(rank, 'mean reward')
 
     env = gym.make('LunarLander-v2')
     obs_space = env.observation_space
@@ -201,7 +182,7 @@ def ppo():
             actor_critic.train(data)
 
     obs, ep_reward, ep_len = env.reset(), 0, 0
-    ep_reward_history = np.zeros(epochs, dtype=np.float32)
+    ep_reward_history = [list() for _ in range(epochs)]
     for ep in range(epochs):
         for t in range(steps_per_epoch):
             action, val, logp_a = actor_critic.step(tf.convert_to_tensor(obs, dtype=tf.float32))
@@ -238,12 +219,19 @@ def ppo():
                 # Computes rewards-to-go, to be targets for the value function
                 rew_boot_buf[:] = discount_cumsum(rews_aug, gamma)[:-1]
 
-                ep_reward_history[ep] = max(ep_reward_history[ep], ep_reward)
+                ep_reward_history[ep].append(ep_reward)
                 obs, ep_reward, done = env.reset(), 0, 0
 
         ppo_update()
-        if mpi_proc_id() == 0:
-            print(f'epoch: {ep + 1}, max reward: {ep_reward_history[ep]:.3f}')
+
+        # Average the minibatch rewards across all processes
+        rank_rwd_mean = np.mean(ep_reward_history[ep])
+        avg_rwd = mpi_avg_scalar(rank_rwd_mean)
+
+        # Record the avg reward so we can save it to a file later
+        if rank == 0:
+            reward_rec.store(avg_rwd)
+            print(f'proc id: {rank}, epoch: {ep + 1}, mean reward: {avg_rwd:.3f}')
 
 
 if __name__ == '__main__':
