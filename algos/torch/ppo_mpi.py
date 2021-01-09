@@ -37,12 +37,16 @@ def mpi_num_procs():
     return MPI.COMM_WORLD.Get_size()
 
 
-def mpi_avg(x):
+def mpi_op(x, op=MPI.SUM):
     x, scalar = ([x], True) if np.isscalar(x) else (x, False)
     x = np.asarray(x, dtype=np.float32)
     buff = np.zeros_like(x, dtype=np.float32)
-    MPI.COMM_WORLD.Allreduce(x, buff, op=MPI.SUM)
-    return (buff[0] if scalar else buff) / mpi_num_procs()
+    MPI.COMM_WORLD.Allreduce(x, buff, op=op)
+    return buff[0] if scalar else buff
+
+
+def mpi_avg(x):
+    return mpi_op(x) / mpi_num_procs()
 
 
 def mpi_avg_grads(module):
@@ -52,6 +56,13 @@ def mpi_avg_grads(module):
         p_grad_numpy = p.grad.numpy()
         avg_p_grad = mpi_avg(p.grad)
         p_grad_numpy[:] = avg_p_grad[:]
+
+
+def mpi_avg_scalar(x):
+    x = np.array(x, dtype=np.float32)
+    global_sum, global_n = mpi_op([np.sum(x), x.size])
+    mean = global_sum / global_n
+    return mean
 
 
 def mpi_sync_params(module):
@@ -151,9 +162,10 @@ def discount_cumsum(x, discount):
 
 
 def ppo():
+    rank = mpi_proc_id()
     torch_mpi_init()
 
-    reward_rec = EpochRecorder(mpi_proc_id(), 'reward')
+    reward_rec = EpochRecorder(rank, 'mean reward')
 
     env = gym.make('LunarLander-v2')
     obs_space = env.observation_space
@@ -207,7 +219,7 @@ def ppo():
             v_optim.step()
 
     obs, ep_reward, ep_len = env.reset(), 0, 0
-    ep_reward_history = np.zeros(epochs, dtype=np.float32)
+    ep_reward_history = [list() for _ in range(epochs)]
     for ep in range(epochs):
         for t in range(steps_per_epoch):
             action, val, logp_a = actor_critic.step(torch.as_tensor(obs, dtype=torch.float32))
@@ -244,13 +256,19 @@ def ppo():
                 # Computes rewards-to-go, to be targets for the value function
                 rew_boot_buf[:] = discount_cumsum(rews_aug, gamma)[:-1]
 
-                ep_reward_history[ep] = max(ep_reward_history[ep], ep_reward)
+                ep_reward_history[ep].append(ep_reward)
                 obs, ep_reward, done = env.reset(), 0, 0
 
         ppo_update()
-        if mpi_proc_id() == 0:
-            reward_rec.store(ep_reward_history[ep])
-            print(f'epoch: {ep + 1}, max reward: {ep_reward_history[ep]:.3f}')
+
+        # Average the minibatch rewards across all processes
+        rank_rwd_mean = np.mean(ep_reward_history[ep])
+        avg_rwd = mpi_avg_scalar(rank_rwd_mean)
+
+        # Record the avg reward so we can save it to a file later
+        if rank == 0:
+            reward_rec.store(avg_rwd.item())
+            print(f'proc id: {rank}, epoch: {ep + 1}, mean reward: {avg_rwd:.3f}')
 
     # Training complete, dump the data to JSON
     if mpi_proc_id() == 0:
