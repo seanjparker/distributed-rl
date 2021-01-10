@@ -15,7 +15,7 @@ def run_torch_ppo(workers, epochs):
 
 def run_tf_ppo(workers, epochs):
     mpi_fork(workers)
-    torch_mpi_ppo(workers, epochs)
+    tf_mpi_ppo(workers, epochs)
 
 
 def run_experiment(framework, workers, epochs):
@@ -40,7 +40,7 @@ if args.b == 'mpi' and args.fw == 'ray':
     raise Exception('cannot use MPI with Ray engine')
 
 if __name__ == '__main__':
-    av_cpu = psutil.cpu_count(logical=False)
+    av_cpu = psutil.cpu_count()
     if args.w > av_cpu:
         raise Exception(f'want {args.w} cpu, have {av_cpu}')
 
