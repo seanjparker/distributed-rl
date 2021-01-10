@@ -4,6 +4,8 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 from scipy import signal
 
+from time import time
+
 from mpi4py import MPI
 from algos.common.mpi import mpi_fork, mpi_proc_id, mpi_avg_scalar
 from algos.common.util import EpochRecorder
@@ -183,6 +185,7 @@ def ppo(workers, epochs):
 
     obs, ep_reward, ep_len = env.reset(), 0, 0
     ep_reward_history = [list() for _ in range(epochs)]
+    start_time = time()
     for ep in range(epochs):
         for t in range(steps_per_epoch):
             action, val, logp_a = actor_critic.step(tf.convert_to_tensor(obs, dtype=tf.float32))
@@ -235,7 +238,13 @@ def ppo(workers, epochs):
 
     # Training complete, dump the data to JSON
     if mpi_proc_id() == 0:
-        reward_rec.dump(custom_data={'framework': 'tf', 'd_lib': 'mpi', 'workers': workers})
+        tot_time = time() - start_time
+        reward_rec.dump(custom_data={
+            'framework': 'tf',
+            'd_lib': 'mpi',
+            'workers': workers,
+            'time': tot_time
+        })
 
 
 if __name__ == '__main__':

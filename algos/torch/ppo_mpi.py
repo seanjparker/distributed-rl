@@ -1,4 +1,5 @@
 from datetime import datetime
+from time import time
 
 import gym
 import numpy as np
@@ -162,6 +163,7 @@ def ppo(current_workers, epochs):
 
     obs, ep_reward, ep_len = env.reset(), 0, 0
     ep_reward_history = [list() for _ in range(epochs)]
+    start_time = time()
     for ep in range(epochs):
         for t in range(steps_per_epoch):
             action, val, logp_a = actor_critic.step(torch.as_tensor(obs, dtype=torch.float32))
@@ -214,7 +216,13 @@ def ppo(current_workers, epochs):
 
     # Training complete, dump the data to JSON
     if mpi_proc_id() == 0:
-        reward_rec.dump(custom_data={'framework': 'torch', 'd_lib': 'mpi', 'workers': current_workers})
+        tot_time = time() - start_time
+        reward_rec.dump(custom_data={
+            'framework': 'torch',
+            'd_lib': 'mpi',
+            'workers': current_workers,
+            'time': tot_time
+        })
 
     return actor_critic
 

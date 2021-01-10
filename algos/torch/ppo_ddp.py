@@ -10,7 +10,9 @@ import numpy as np
 import gym
 from scipy import signal
 
-import os, subprocess, sys
+from time import time
+
+import os
 
 # Hyperparameter definitions
 from algos.common.util import EpochRecorder
@@ -195,6 +197,7 @@ def ppo(rank, current_workers):
 
     obs, ep_reward, ep_len = env.reset(), 0, 0
     ep_reward_history = [list() for _ in range(epochs)]
+    start_time = time()
     for ep in range(epochs):
         for t in range(steps_per_epoch):
             # Get the predictions from the actor & critic networks
@@ -258,7 +261,13 @@ def ppo(rank, current_workers):
 
     # Dump the recorded values to a file
     if rank == 0:
-        reward_rec.dump(custom_data={'framework': 'torch', 'd_lib': 'ddp', 'workers': current_workers})
+        tot_time = time() - start_time
+        reward_rec.dump(custom_data={
+            'framework': 'torch',
+            'd_lib': 'ddp',
+            'workers': current_workers,
+            'time': tot_time
+        })
 
     # Return the trained model -- contains the value and policy networks
     return actor_critic
