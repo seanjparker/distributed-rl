@@ -13,6 +13,7 @@ mpi4py = "*"
 tensorflow = "*"
 tensorflow-probability = "*"
 ray = "*"
+seaborn = "*"
 
 [dev-packages]
 autopep8 = "*"
