@@ -14,6 +14,7 @@ tensorflow = "*"
 tensorflow-probability = "*"
 ray = "*"
 seaborn = "*"
+psutil = "*"
 
 [dev-packages]
 autopep8 = "*"

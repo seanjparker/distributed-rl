@@ -12,7 +12,7 @@ from algos.common.util import EpochRecorder
 num_workers = 4
 pi_lr = 3e-4
 v_lr = 1e-3
-epochs = 50
+# epochs = 50
 steps_per_epoch = 4000 // num_workers
 max_ep_len = 1000
 train_iters = 80
@@ -153,7 +153,7 @@ def discount_cumsum(x, discount):
     return signal.lfilter([1], [1, float(-discount)], x[::-1], axis=0)[::-1]
 
 
-def ppo(workers):
+def ppo(workers, epochs):
     rank = mpi_proc_id()
     tf_mpi_init()
 
