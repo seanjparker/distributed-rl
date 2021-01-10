@@ -1,5 +1,5 @@
 #!/bin/sh
 
-for (( i=2; i<=32; i*=2 )); do
-  python run.py --fw torch --w "$i"
+for i in 2 4 8 16 32; do
+  python run.py --fw torch --w "$i" --epochs 200
 done
