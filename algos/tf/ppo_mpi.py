@@ -153,7 +153,7 @@ def discount_cumsum(x, discount):
     return signal.lfilter([1], [1, float(-discount)], x[::-1], axis=0)[::-1]
 
 
-def ppo():
+def ppo(workers):
     rank = mpi_proc_id()
     tf_mpi_init()
 
@@ -233,7 +233,11 @@ def ppo():
             reward_rec.store(avg_rwd)
             print(f'proc id: {rank}, epoch: {ep + 1}, mean reward: {avg_rwd:.3f}')
 
+    # Training complete, dump the data to JSON
+    if mpi_proc_id() == 0:
+        reward_rec.dump(custom_data={'framework': 'tf', 'd_lib': 'mpi', 'workers': workers})
+
 
 if __name__ == '__main__':
     mpi_fork(num_workers)
-    ppo()
+    ppo(num_workers)

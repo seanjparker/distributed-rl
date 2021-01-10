@@ -1,3 +1,4 @@
+import os
 import json
 from datetime import datetime
 
@@ -18,7 +19,13 @@ class EpochRecorder:
         self.data['epoch'].append(self.epoch)
         self.epoch += 1
 
-    def dump(self):
+    def dump(self, custom_data=None):
         timestamp = datetime.now().strftime("%H:%M:%S")
-        with open(f'{timestamp}_{self.name}.json', 'w') as handle:
+        if custom_data is not None:
+            for k, v in custom_data.items():
+                self.data[k] = v
+
+        filename = f'results/{timestamp}_{self.name}.json'
+        os.makedirs(os.path.dirname(filename), exist_ok=True)
+        with open(filename, 'w') as handle:
             json.dump(self.data, handle)

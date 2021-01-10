@@ -18,7 +18,7 @@ from algos.common.util import EpochRecorder
 num_workers = 2  # same thing as 'world size'
 pi_lr = 3e-4
 v_lr = 1e-3
-epochs = 5  # 50
+epochs = 50  # 50
 steps_per_epoch = 4000 // num_workers
 max_ep_len = 1000
 train_pi_iters = 80
@@ -128,9 +128,9 @@ def discount_cumsum(x, discount):
     return signal.lfilter([1], [1, float(-discount)], x[::-1], axis=0)[::-1]
 
 
-def ppo(rank):
+def ppo(rank, current_workers):
     print(f'Running PPO using DDP -- rank {rank}')
-    setup(rank, num_workers)
+    setup(rank, current_workers)
     
     env = gym.make('LunarLander-v2')
     obs_space = env.observation_space
@@ -258,13 +258,13 @@ def ppo(rank):
 
     # Dump the recorded values to a file
     if rank == 0:
-        reward_rec.dump()
+        reward_rec.dump(custom_data={'framework': 'torch', 'd_lib': 'ddp', 'workers': current_workers})
 
     # Return the trained model -- contains the value and policy networks
     return actor_critic
 
 
 if __name__ == '__main__':
-    mp.spawn(ppo, nprocs=num_workers, join=True)
+    mp.spawn(ppo, args=(num_workers,), nprocs=num_workers, join=True)
 
 

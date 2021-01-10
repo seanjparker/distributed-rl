@@ -103,7 +103,7 @@ def discount_cumsum(x, discount):
     return signal.lfilter([1], [1, float(-discount)], x[::-1], axis=0)[::-1]
 
 
-def ppo():
+def ppo(current_workers):
     rank = mpi_proc_id()
     torch_mpi_init()
 
@@ -214,14 +214,14 @@ def ppo():
 
     # Training complete, dump the data to JSON
     if mpi_proc_id() == 0:
-        reward_rec.dump()
+        reward_rec.dump(custom_data={'framework': 'torch', 'd_lib': 'mpi', 'workers': current_workers})
 
     return actor_critic
 
 
 if __name__ == '__main__':
     mpi_fork(num_workers)
-    model = ppo()
+    model = ppo(num_workers)
     if mpi_proc_id() == 0:
         timestamp = datetime.now().strftime("%H:%M:%S")
         torch.save(model.state_dict(), f'{ROOT_DIR}/models/{timestamp}_torchppo.pt')
