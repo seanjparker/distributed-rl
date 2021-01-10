@@ -221,7 +221,7 @@ def ppo(current_workers, epochs):
             'framework': 'torch',
             'd_lib': 'mpi',
             'workers': current_workers,
-            'time': tot_time
+            'time': str(tot_time)
         })
 
     return actor_critic

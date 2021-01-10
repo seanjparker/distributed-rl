@@ -243,7 +243,7 @@ def ppo(workers, epochs):
             'framework': 'tf',
             'd_lib': 'mpi',
             'workers': workers,
-            'time': tot_time
+            'time': str(tot_time)
         })
 
 
