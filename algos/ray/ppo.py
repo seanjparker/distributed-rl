@@ -6,14 +6,16 @@ from time import time
 
 
 def ppo(current_workers, epochs):
-    ray.init()
+    ray.init(num_cpus=current_workers)
+
     config = ray_ppo.DEFAULT_CONFIG.copy()
     config['num_gpus'] = 0
     config['num_workers'] = current_workers
     config['clip_param'] = 0.2
-    config['num_sgd_iter'] = 60
+    config['num_sgd_iter'] = 30
     config['lambda'] = 0.97
-    config['framework'] = 'torch'
+    config['framework'] = 'tf2'
+    config['model']['fcnet_hiddens'] = [64, 64]
 
     print(pretty_print(config))
 
