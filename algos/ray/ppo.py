@@ -16,6 +16,7 @@ def ppo(current_workers, epochs):
     config['lambda'] = 0.97
     config['framework'] = 'tf2'
     config['model']['fcnet_hiddens'] = [64, 64]
+    config['train_batch_size'] = int(4000/current_workers)
 
     print(pretty_print(config))
 
@@ -28,7 +29,8 @@ def ppo(current_workers, epochs):
         result = trainer.train()
         avg_reward = result["episode_reward_mean"]
         reward_rec.store(avg_reward)
-        print(f'epoch: {ep + 1}, mean reward: {avg_reward:.3f}')
+        print(f'epoch: {ep + 1}, mean reward: {avg_reward:.3f}, time: {result["time_this_iter_s"]}')
+        print(pretty_print(result))
 
     tot_time = time() - start_time
     reward_rec.dump(custom_data={
