@@ -266,7 +266,7 @@ def ppo(rank, current_workers):
             'framework': 'torch',
             'd_lib': 'ddp',
             'workers': current_workers,
-            'time': tot_time
+            'time': str(tot_time)
         })
 
     # Return the trained model -- contains the value and policy networks

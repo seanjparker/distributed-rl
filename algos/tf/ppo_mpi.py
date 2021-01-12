@@ -233,7 +233,7 @@ def ppo(workers, epochs):
 
         # Record the avg reward so we can save it to a file later
         if rank == 0:
-            reward_rec.store(avg_rwd)
+            reward_rec.store(avg_rwd.item())
             print(f'proc id: {rank}, epoch: {ep + 1}, mean reward: {avg_rwd:.3f}')
 
     # Training complete, dump the data to JSON
