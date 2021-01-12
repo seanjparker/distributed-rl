@@ -30,7 +30,6 @@ def ppo(current_workers, epochs):
         avg_reward = result["episode_reward_mean"]
         reward_rec.store(avg_reward)
         print(f'epoch: {ep + 1}, mean reward: {avg_reward:.3f}, time: {result["time_this_iter_s"]}')
-        print(pretty_print(result))
 
     tot_time = time() - start_time
     reward_rec.dump(custom_data={
