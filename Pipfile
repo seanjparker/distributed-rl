@@ -12,9 +12,9 @@ box2d = "*"
 mpi4py = "*"
 tensorflow = "*"
 tensorflow-probability = "*"
-ray = "*"
 seaborn = "*"
 psutil = "*"
+ray = {extras = ["rllib"], version = "*"}
 
 [dev-packages]
 autopep8 = "*"

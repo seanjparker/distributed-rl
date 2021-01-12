@@ -1,7 +1,7 @@
-import torch.multiprocessing as mp
 from algos.torch.ppo_ddp import ppo as torch_ddp_ppo
 from algos.torch.ppo_mpi import ppo as torch_mpi_ppo
 from algos.tf.ppo_mpi import ppo as tf_mpi_ppo
+from algos.ray.ppo import ppo as ray_ppo
 from algos.common.mpi import mpi_fork
 
 import argparse
@@ -25,7 +25,7 @@ def run_experiment(framework, workers, epochs):
     elif framework == 'torch':
         run_torch_ppo(workers, epochs)
     elif framework == 'ray':
-        return
+        ray_ppo(workers, epochs)
 
 
 parser = argparse.ArgumentParser()
