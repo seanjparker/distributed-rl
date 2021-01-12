@@ -40,7 +40,7 @@ def mpi_fork(n):
     if os.getenv("IN_MPI") is None:
         env = os.environ.copy()
         env.update(MKL_NUM_THREADS='1', OMP_NUM_THREADS='1', IN_MPI='1')
-        args = ['mpirun', '-np', str(n), '--use-hwthread-cpus']
+        args = ['mpirun', '-hostfile', '/etc/hosts', '-np', str(n), '--use-hwthread-cpus']
         args += [sys.executable] + sys.argv
         print(args)
         subprocess.check_call(args, env=env)
@@ -63,7 +63,3 @@ def torch_mpi_avg_grads(module):
         p_grad_numpy = p.grad.numpy()
         avg_p_grad = mpi_avg(p.grad)
         p_grad_numpy[:] = avg_p_grad[:]
-
-
-# -------- Tensorflow-specific MPI functions --------
-
